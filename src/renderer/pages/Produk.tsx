@@ -82,6 +82,7 @@ const emptyForm = (): ProdukInput => ({
   berat_produk: "",
   main_eceran: null,
   label_kemasan: null,
+  gambar: null,
 });
 
 export default function ProdukPage() {
@@ -153,6 +154,12 @@ export default function ProdukPage() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [typedPassword, setTypedPassword] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
+
+  // State variables for Catalog PDF export
+  const [showCatalogModal, setShowCatalogModal] = useState(false);
+  const [selectedCatalogIds, setSelectedCatalogIds] = useState<number[]>([]);
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
   const getBeratInGrams = (valStr: string, unit: "KG" | "GR") => {
     const numericVal = parseFloat(valStr.replace(/,/g, ".")) || 0;
@@ -279,6 +286,7 @@ export default function ProdukPage() {
             berat_produk: p.berat_produk ?? "",
             main_eceran: p.main_eceran ?? null,
             label_kemasan: p.label_kemasan ?? null,
+            gambar: p.gambar ?? null,
           });
           const { value, unit } = parseBerat(p.berat_produk);
           setBeratValue(value);
@@ -395,6 +403,49 @@ export default function ProdukPage() {
     input.click();
   };
 
+  const openCatalogModal = () => {
+    setSelectedCatalogIds(produkList.map((p) => p.id));
+    setCatalogSearch("");
+    setShowCatalogModal(true);
+  };
+
+  const handleExportCatalogPdf = async () => {
+    if (selectedCatalogIds.length === 0) {
+      alert("Pilih minimal satu produk untuk diekspor.");
+      return;
+    }
+    setIsExportingPdf(true);
+    try {
+      const success = await window.api.produk.exportCatalog(selectedCatalogIds);
+      if (success) {
+        setMessage("Katalog PDF berhasil diekspor");
+        setShowCatalogModal(false);
+      }
+    } catch (err) {
+      console.error(err);
+      alert(
+        "Gagal mengekspor katalog: " +
+          (err instanceof Error ? err.message : String(err)),
+      );
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
+  const filteredCatalogProducts = useMemo(() => {
+    const q = catalogSearch.trim().toLowerCase();
+    if (!q) return produkList;
+    return produkList.filter((p) => p.nama_menu.toLowerCase().includes(q));
+  }, [produkList, catalogSearch]);
+
+  const handleSelectAllCatalog = () => {
+    setSelectedCatalogIds(produkList.map((p) => p.id));
+  };
+
+  const handleDeselectAllCatalog = () => {
+    setSelectedCatalogIds([]);
+  };
+
   return (
     <div className="h-full w-full relative">
       {/* Form Tambah/Edit Produk */}
@@ -412,10 +463,111 @@ export default function ProdukPage() {
                 <input
                   value={form.nama_menu}
                   onChange={(e) =>
-                    setForm({ ...form, nama_menu: e.target.value.toUpperCase() })
+                    setForm({
+                      ...form,
+                      nama_menu: e.target.value.toUpperCase(),
+                    })
                   }
                   className={`input-field uppercase ${formError && !form.nama_menu.trim() ? "input-error" : ""}`}
                 />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium">
+                  Foto Produk
+                </label>
+                <div className="flex items-center gap-4 mt-1">
+                  {form.gambar ? (
+                    <div className="relative w-24 h-24 border border-slate-200 rounded-xl overflow-hidden bg-slate-50 flex items-center justify-center group">
+                      <img
+                        src={form.gambar}
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, gambar: null })}
+                        className="absolute inset-0 bg-black/50 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs font-bold"
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="w-24 h-24 border border-dashed border-slate-300 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:text-snack-600 hover:border-snack-300 hover:bg-snack-50/30 cursor-pointer transition select-none">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="mb-1"
+                      >
+                        <rect
+                          x="3"
+                          y="3"
+                          width="18"
+                          height="18"
+                          rx="2"
+                          ry="2"
+                        ></rect>
+                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                        <polyline points="21 15 16 10 5 21"></polyline>
+                      </svg>
+                      <span className="text-[10px] font-bold">Unggah</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              const img = new Image();
+                              img.onload = () => {
+                                const canvas = document.createElement("canvas");
+                                const MAX_WIDTH = 500;
+                                const MAX_HEIGHT = 500;
+                                let width = img.width;
+                                let height = img.height;
+
+                                if (width > height) {
+                                  if (width > MAX_WIDTH) {
+                                    height *= MAX_WIDTH / width;
+                                    width = MAX_WIDTH;
+                                  }
+                                } else {
+                                  if (height > MAX_HEIGHT) {
+                                    width *= MAX_HEIGHT / height;
+                                    height = MAX_HEIGHT;
+                                  }
+                                }
+
+                                canvas.width = width;
+                                canvas.height = height;
+                                const ctx = canvas.getContext("2d");
+                                ctx?.drawImage(img, 0, 0, width, height);
+                                const compressedBase64 = canvas.toDataURL(
+                                  "image/jpeg",
+                                  0.7,
+                                );
+                                setForm({ ...form, gambar: compressedBase64 });
+                              };
+                              img.src = event.target?.result as string;
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                  <div className="text-xs text-slate-400 leading-relaxed max-w-sm">
+                    Mendukung JPG, PNG. Foto akan dikompresi otomatis (maks.
+                    500px, JPEG 70%) agar database tetap ringan.
+                  </div>
+                </div>
               </div>
               <div>
                 <label className="mb-1 block text-sm font-medium">Berat</label>
@@ -468,7 +620,9 @@ export default function ProdukPage() {
                             </span>
                             <select
                               value={getFormLabel(key) || "Bal"}
-                              onChange={(e) => setFormLabel(key, e.target.value)}
+                              onChange={(e) =>
+                                setFormLabel(key, e.target.value)
+                              }
                               className="bg-snack-50 text-snack-700 text-[11px] font-bold px-2 py-0.5 rounded cursor-pointer border-none outline-none focus:ring-1 focus:ring-snack-500"
                             >
                               <option value="Bal">Bal</option>
@@ -572,7 +726,11 @@ export default function ProdukPage() {
               <p className="mt-3 text-sm text-red-600">{formError}</p>
             )}
             <div className="mt-6 flex gap-2">
-              <button type="button" onClick={handleSave} className="btn-primary">
+              <button
+                type="button"
+                onClick={handleSave}
+                className="btn-primary"
+              >
                 Simpan (Ctrl+S)
               </button>
               <button
@@ -588,365 +746,392 @@ export default function ProdukPage() {
       )}
 
       {/* Main List View */}
-      <div className={`flex h-full gap-3 p-4 overflow-hidden ${produkFormMode !== "list" ? "hidden" : ""}`}>
-      {/* Left List Container */}
-      <div className="flex min-w-0 flex-1 flex-col gap-3">
-        {message && (
-          <div className="rounded-lg bg-emerald-50 px-4 py-2 text-sm text-emerald-800 shrink-0">
-            {message}
-          </div>
-        )}
-
-        <div className="panel flex flex-wrap items-center gap-3 p-4 shrink-0">
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari produk..."
-            className="input-field max-w-xs"
-          />
-          {isAdminUnlocked && (
-            <button
-              type="button"
-              onClick={() => useNavStore.getState().openAddProduk()}
-              className="btn-primary"
-            >
-              + Tambah Produk
-            </button>
+      <div
+        className={`flex h-full gap-3 p-4 overflow-hidden ${produkFormMode !== "list" ? "hidden" : ""}`}
+      >
+        {/* Left List Container */}
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+          {message && (
+            <div className="rounded-lg bg-emerald-50 px-4 py-2 text-sm text-emerald-800 shrink-0">
+              {message}
+            </div>
           )}
-          <button
-            type="button"
-            onClick={handleExport}
-            className="btn-secondary"
-          >
-            Export CSV
-          </button>
-          {isAdminUnlocked && (
+
+          <div className="panel flex flex-wrap items-center gap-3 p-4 shrink-0">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Cari produk..."
+              className="input-field max-w-xs"
+            />
+
+            {isAdminUnlocked && (
+              <button
+                type="button"
+                onClick={() => useNavStore.getState().openAddProduk()}
+                className="btn-primary"
+              >
+                + Tambah Produk
+              </button>
+            )}
             <button
               type="button"
-              onClick={handleImport}
+              onClick={handleExport}
               className="btn-secondary"
             >
-              Import CSV
+              Export CSV
             </button>
-          )}
-
-          {/* Unlock Admin Action Button */}
-          <button
-            type="button"
-            onClick={() => {
-              if (isAdminUnlocked) {
-                setIsAdminUnlocked(false);
-              } else {
-                setShowPasswordModal(true);
-              }
-            }}
-            className={`ml-auto px-4 py-2 rounded-lg font-bold text-sm shadow transition ${
-              isAdminUnlocked
-                ? "bg-amber-100 hover:bg-amber-200 text-amber-800"
-                : "bg-snack-600 hover:bg-snack-700 text-white"
-            }`}
-          >
-            {isAdminUnlocked ? "Selesai Ubah" : "Ubah"}
-          </button>
-        </div>
-
-        <div className="panel min-h-0 flex-1 overflow-auto">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase text-slate-500">
-              <tr>
-                {[
-                  ["id", "No", "w-12 text-center"],
-                  ["nama_menu", "Nama Menu", ""],
-                  ["berat_produk", "Berat", "w-24 text-center"],
-                  ["harga_modal", "Harga Modal", ""],
-                  ["harga_jual", "Harga Jual", ""],
-                  ["harga_100gr", "100gr", ""],
-                  ["harga_200gr", "200gr", ""],
-                  ["harga_250gr", "250gr", ""],
-                  ["harga_500gr", "500gr", ""],
-                  ["harga_1kg", "1kg", ""],
-                ].map(([col, label, colClass]) => (
-                  <th
-                    key={col}
-                    className={`cursor-pointer px-3 py-2 hover:bg-slate-100 ${colClass}`}
-                    onClick={() => toggleSort(col as keyof Produk)}
-                  >
-                    {label} {sortCol === col ? (sortAsc ? "↑" : "↓") : ""}
-                  </th>
-                ))}
-                {isAdminUnlocked && (
-                  <th className="px-3 py-2 text-center w-24">Aksi</th>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((p, idx) => {
-                const isSelected = detailTarget?.id === p.id;
-                return (
-                  <tr
-                    key={p.id}
-                    onClick={() => setDetailTarget(p)}
-                    className={`cursor-pointer border-t border-slate-100 transition select-none ${
-                      isSelected
-                        ? "bg-snack-100 font-semibold"
-                        : "hover:bg-snack-50"
-                    }`}
-                  >
-                    <td className="px-3 py-2 text-center w-12">{idx + 1}</td>
-                    <td
-                      className="px-3 py-2 font-medium max-w-[200px] truncate"
-                      title={p.nama_menu}
-                    >
-                      {p.nama_menu}
-                    </td>
-                    <td className="px-3 py-2 text-slate-700 font-medium text-center w-24 truncate">
-                      {p.berat_produk ?? "—"}
-                    </td>
-                    <td className="px-3 py-2">
-                      {p.harga_modal != null
-                        ? formatRupiah(p.harga_modal)
-                        : "—"}
-                    </td>
-                    <td className="px-3 py-2">
-                      {renderHargaCell(p, "jual", "harga_jual")}
-                    </td>
-                    <td className="px-3 py-2">
-                      {renderHargaCell(p, "100gr", "harga_100gr")}
-                    </td>
-                    <td className="px-3 py-2">
-                      {renderHargaCell(p, "200gr", "harga_200gr")}
-                    </td>
-                    <td className="px-3 py-2">
-                      {renderHargaCell(p, "250gr", "harga_250gr")}
-                    </td>
-                    <td className="px-3 py-2">
-                      {renderHargaCell(p, "500gr", "harga_500gr")}
-                    </td>
-                    <td className="px-3 py-2">
-                      {renderHargaCell(p, "1kg", "harga_1kg")}
-                    </td>
-                    {isAdminUnlocked && (
-                      <td
-                        className="px-3 py-2 text-center"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <div className="flex justify-center items-center gap-2">
-                          <button
-                            type="button"
-                            className="text-blue-600 hover:underline font-bold text-xs"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              useNavStore.getState().openEditProduk(p.id);
-                            }}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            className="text-red-600 hover:underline font-bold text-xs"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setDeleteTarget(p);
-                            }}
-                          >
-                            Hapus
-                          </button>
-                        </div>
-                      </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Right Sidebar Detail Panel */}
-      {detailTarget && (
-        <div className="panel w-96 shrink-0 overflow-auto p-4 border border-slate-100 animate-in slide-in-from-right duration-200 flex flex-col gap-4">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 select-none">
-              <div>
-                <span className="px-2 py-0.5 text-[10px] font-black rounded border bg-snack-50 text-snack-700 border-snack-100 uppercase tracking-wider">
-                  Detail Barang
-                </span>
-                <h3
-                  className="text-base font-extrabold text-slate-800 mt-1 uppercase max-w-[200px] truncate"
-                  title={detailTarget.nama_menu}
-                >
-                  {detailTarget.nama_menu}
-                </h3>
-              </div>
+            <button
+              type="button"
+              onClick={openCatalogModal}
+              className="btn-secondary"
+            >
+              Cetak Katalog PDF
+            </button>
+            {isAdminUnlocked && (
               <button
-                onClick={() => setDetailTarget(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition animate-in fade-in"
-                title="Tutup Detail"
+                type="button"
+                onClick={handleImport}
+                className="btn-secondary"
               >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
+                Import CSV
               </button>
-            </div>
+            )}
 
-            {/* Basic Meta Cards */}
-            <div className="grid grid-cols-2 gap-3 select-none">
-              <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-3">
-                <span className="text-[10px] font-bold text-slate-400 block uppercase">
-                  Berat Total
-                </span>
-                <span className="text-xs font-extrabold text-slate-800">
-                  {detailTarget.berat_produk || "—"}
-                </span>
-              </div>
-              <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-3">
-                <span className="text-[10px] font-bold text-slate-400 block uppercase">
-                  Modal Bal
-                </span>
-                <span className="text-xs font-extrabold text-slate-800">
-                  {detailTarget.harga_modal != null
-                    ? formatRupiah(detailTarget.harga_modal)
-                    : "—"}
-                </span>
-              </div>
-            </div>
+            {/* Unlock Admin Action Button */}
+            <button
+              type="button"
+              onClick={() => {
+                if (isAdminUnlocked) {
+                  setIsAdminUnlocked(false);
+                } else {
+                  setShowPasswordModal(true);
+                }
+              }}
+              className={`ml-auto px-4 py-2 rounded-lg font-bold text-sm shadow transition ${
+                isAdminUnlocked
+                  ? "bg-amber-100 hover:bg-amber-200 text-amber-800"
+                  : "bg-snack-600 hover:bg-snack-700 text-white"
+              }`}
+            >
+              {isAdminUnlocked ? "Selesai Ubah" : "Ubah"}
+            </button>
+          </div>
 
-            {/* Price Details Table for Packaging */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider select-none">
-                Daftar Harga & Laba
-              </h4>
-              <div className="border border-slate-100 rounded-xl overflow-hidden bg-white">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-50 text-[9px] font-bold uppercase text-slate-400 select-none border-b border-slate-100">
-                    <tr>
-                      <th className="px-2 py-2">Kemasan</th>
-                      <th className="px-2 py-2 text-right">Harga</th>
-                      <th className="px-2 py-2 text-right">Laba</th>
+          <div className="panel min-h-0 flex-1 overflow-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase text-slate-500">
+                <tr>
+                  {[
+                    ["id", "No", "w-12 text-center"],
+                    ["nama_menu", "Nama Menu", ""],
+                    ["berat_produk", "Berat", "w-24 text-center"],
+                    ["harga_modal", "Harga Modal", ""],
+                    ["harga_jual", "Harga Jual", ""],
+                    ["harga_100gr", "100gr", ""],
+                    ["harga_200gr", "200gr", ""],
+                    ["harga_250gr", "250gr", ""],
+                    ["harga_500gr", "500gr", ""],
+                    ["harga_1kg", "1kg", ""],
+                  ].map(([col, label, colClass]) => (
+                    <th
+                      key={col}
+                      className={`cursor-pointer px-3 py-2 hover:bg-slate-100 ${colClass}`}
+                      onClick={() => toggleSort(col as keyof Produk)}
+                    >
+                      {label} {sortCol === col ? (sortAsc ? "↑" : "↓") : ""}
+                    </th>
+                  ))}
+                  {isAdminUnlocked && (
+                    <th className="px-3 py-2 text-center w-24">Aksi</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((p, idx) => {
+                  const isSelected = detailTarget?.id === p.id;
+                  return (
+                    <tr
+                      key={p.id}
+                      onClick={() => setDetailTarget(p)}
+                      className={`cursor-pointer border-t border-slate-100 transition select-none ${
+                        isSelected
+                          ? "bg-snack-100 font-semibold"
+                          : "hover:bg-snack-50"
+                      }`}
+                    >
+                      <td className="px-3 py-2 text-center w-12">{idx + 1}</td>
+                      <td
+                        className="px-3 py-2 font-medium max-w-[200px] truncate"
+                        title={p.nama_menu}
+                      >
+                        {p.nama_menu}
+                      </td>
+                      <td className="px-3 py-2 text-slate-700 font-medium text-center w-24 truncate">
+                        {p.berat_produk ?? "—"}
+                      </td>
+                      <td className="px-3 py-2">
+                        {p.harga_modal != null
+                          ? formatRupiah(p.harga_modal)
+                          : "—"}
+                      </td>
+                      <td className="px-3 py-2">
+                        {renderHargaCell(p, "jual", "harga_jual")}
+                      </td>
+                      <td className="px-3 py-2">
+                        {renderHargaCell(p, "100gr", "harga_100gr")}
+                      </td>
+                      <td className="px-3 py-2">
+                        {renderHargaCell(p, "200gr", "harga_200gr")}
+                      </td>
+                      <td className="px-3 py-2">
+                        {renderHargaCell(p, "250gr", "harga_250gr")}
+                      </td>
+                      <td className="px-3 py-2">
+                        {renderHargaCell(p, "500gr", "harga_500gr")}
+                      </td>
+                      <td className="px-3 py-2">
+                        {renderHargaCell(p, "1kg", "harga_1kg")}
+                      </td>
+                      {isAdminUnlocked && (
+                        <td
+                          className="px-3 py-2 text-center"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="flex justify-center items-center gap-2">
+                            <button
+                              type="button"
+                              className="text-blue-600 hover:underline font-bold text-xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                useNavStore.getState().openEditProduk(p.id);
+                              }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="text-red-600 hover:underline font-bold text-xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteTarget(p);
+                              }}
+                            >
+                              Hapus
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      const totalWeight = detailTarget.berat_produk
-                        ? parseFloat(
-                            detailTarget.berat_produk.replace(/,/g, "."),
-                          ) *
-                            (detailTarget.berat_produk
-                              .toLowerCase()
-                              .includes("kg")
-                              ? 1000
-                              : 1) || 0
-                        : 0;
-                      const modal = detailTarget.harga_modal || 0;
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-                      return (
-                        [
-                          ["harga_jual", "Bal / Grosir", 0],
-                          ["harga_100gr", "100gr", 100],
-                          ["harga_200gr", "200gr", 200],
-                          ["harga_250gr", "250gr", 250],
-                          ["harga_500gr", "500gr", 500],
-                          ["harga_1kg", "1kg", 1000],
-                        ] as [keyof Produk, string, number][]
-                      ).map(([field, defaultLabel, defaultWeight]) => {
-                        const val = detailTarget[field] as number | null;
-                        if (val == null) return null;
+        {/* Right Sidebar Detail Panel */}
+        {detailTarget && (
+          <div className="panel w-96 shrink-0 overflow-auto p-4 border border-slate-100 animate-in slide-in-from-right duration-200 flex flex-col gap-4">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 select-none">
+                <div>
+                  <span className="px-2 py-0.5 text-[10px] font-black rounded border bg-snack-50 text-snack-700 border-snack-100 uppercase tracking-wider">
+                    Detail Barang
+                  </span>
+                  <h3
+                    className="text-base font-extrabold text-slate-800 mt-1 uppercase max-w-[200px] truncate"
+                    title={detailTarget.nama_menu}
+                  >
+                    {detailTarget.nama_menu}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setDetailTarget(null)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition animate-in fade-in"
+                  title="Tutup Detail"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                  </svg>
+                </button>
+              </div>
 
-                        const labelText = getKemasanLabel(detailTarget, KEY_TO_KEMASAN[field]);
-                        const isMain =
-                          detailTarget.main_eceran === KEY_TO_KEMASAN[field];
+              {/* Foto Produk di Detail Sidebar */}
+              {detailTarget.gambar && (
+                <div className="w-full h-48 bg-slate-50 border border-slate-200/60 rounded-xl overflow-hidden flex items-center justify-center select-none">
+                  <img
+                    src={detailTarget.gambar}
+                    alt={detailTarget.nama_menu}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
 
-                        // Calculate modal
-                        let calculatedModal = modal;
-                        const isEceran = field !== "harga_jual";
-                        if (isEceran) {
-                          let itemWeight = defaultWeight;
-                          const match = labelText.match(
-                            /^([\d.,]+)\s*(kg|gr|g)?$/i,
-                          );
-                          if (match) {
-                            const num =
-                              parseFloat(match[1].replace(/,/g, ".")) || 0;
-                            const unit = (match[2] || "gr").toLowerCase();
-                            itemWeight = unit === "kg" ? num * 1000 : num;
-                          }
-                          if (totalWeight > 0) {
-                            calculatedModal = Math.round(
-                              (itemWeight / totalWeight) * modal,
-                            );
-                          } else {
-                            calculatedModal = 0;
-                          }
-                        }
+              {/* Basic Meta Cards */}
+              <div className="grid grid-cols-2 gap-3 select-none">
+                <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-3">
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase">
+                    Berat Total
+                  </span>
+                  <span className="text-xs font-extrabold text-slate-800">
+                    {detailTarget.berat_produk || "—"}
+                  </span>
+                </div>
+                <div className="bg-slate-50 border border-slate-200/60 rounded-xl p-3">
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase">
+                    Modal Bal
+                  </span>
+                  <span className="text-xs font-extrabold text-slate-800">
+                    {detailTarget.harga_modal != null
+                      ? formatRupiah(detailTarget.harga_modal)
+                      : "—"}
+                  </span>
+                </div>
+              </div>
 
-                        const profit = val - calculatedModal;
-                        const margin =
-                          val > 0 ? Math.round((profit / val) * 100) : 0;
-                        const isLoss = profit < 0;
+              {/* Price Details Table for Packaging */}
+              <div className="space-y-2">
+                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider select-none">
+                  Daftar Harga & Laba
+                </h4>
+                <div className="border border-slate-100 rounded-xl overflow-hidden bg-white">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-50 text-[9px] font-bold uppercase text-slate-400 select-none border-b border-slate-100">
+                      <tr>
+                        <th className="px-2 py-2">Kemasan</th>
+                        <th className="px-2 py-2 text-right">Harga</th>
+                        <th className="px-2 py-2 text-right">Laba</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(() => {
+                        const totalWeight = detailTarget.berat_produk
+                          ? parseFloat(
+                              detailTarget.berat_produk.replace(/,/g, "."),
+                            ) *
+                              (detailTarget.berat_produk
+                                .toLowerCase()
+                                .includes("kg")
+                                ? 1000
+                                : 1) || 0
+                          : 0;
+                        const modal = detailTarget.harga_modal || 0;
 
                         return (
-                          <tr
-                            key={field}
-                            className="border-t border-slate-100 hover:bg-slate-50/50"
-                          >
-                            <td className="px-2 py-2 font-bold text-slate-800">
-                              <div className="flex flex-col gap-0.5">
-                                <span
-                                  className="truncate max-w-[100px]"
-                                  title={labelText}
-                                >
-                                  {labelText}
-                                </span>
-                                {isMain && (
-                                  <span className="text-[8px] font-black text-snack-700 bg-snack-50 border border-snack-100/50 px-1 py-0.2 rounded uppercase w-max select-none">
-                                    Utama
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-2 py-2 text-right font-semibold text-slate-700">
-                              {formatRupiah(val)}
-                            </td>
-                            <td
-                              className={`px-2 py-2 text-right font-extrabold ${isLoss ? "text-rose-600 animate-pulse" : "text-emerald-600"}`}
+                          [
+                            ["harga_jual", "Bal / Grosir", 0],
+                            ["harga_100gr", "100gr", 100],
+                            ["harga_200gr", "200gr", 200],
+                            ["harga_250gr", "250gr", 250],
+                            ["harga_500gr", "500gr", 500],
+                            ["harga_1kg", "1kg", 1000],
+                          ] as [keyof Produk, string, number][]
+                        ).map(([field, defaultLabel, defaultWeight]) => {
+                          const val = detailTarget[field] as number | null;
+                          if (val == null) return null;
+
+                          const labelText = getKemasanLabel(
+                            detailTarget,
+                            KEY_TO_KEMASAN[field],
+                          );
+                          const isMain =
+                            detailTarget.main_eceran === KEY_TO_KEMASAN[field];
+
+                          // Calculate modal
+                          let calculatedModal = modal;
+                          const isEceran = field !== "harga_jual";
+                          if (isEceran) {
+                            let itemWeight = defaultWeight;
+                            const match = labelText.match(
+                              /^([\d.,]+)\s*(kg|gr|g)?$/i,
+                            );
+                            if (match) {
+                              const num =
+                                parseFloat(match[1].replace(/,/g, ".")) || 0;
+                              const unit = (match[2] || "gr").toLowerCase();
+                              itemWeight = unit === "kg" ? num * 1000 : num;
+                            }
+                            if (totalWeight > 0) {
+                              calculatedModal = Math.round(
+                                (itemWeight / totalWeight) * modal,
+                              );
+                            } else {
+                              calculatedModal = 0;
+                            }
+                          }
+
+                          const profit = val - calculatedModal;
+                          const margin =
+                            val > 0 ? Math.round((profit / val) * 100) : 0;
+                          const isLoss = profit < 0;
+
+                          return (
+                            <tr
+                              key={field}
+                              className="border-t border-slate-100 hover:bg-slate-50/50"
                             >
-                              {calculatedModal > 0 ? (
-                                <>
-                                  {formatRupiah(profit)}
-                                  <span className="text-[9px] font-semibold text-slate-400 block">
-                                    ({margin > 0 ? `+${margin}%` : `${margin}%`}
-                                    )
+                              <td className="px-2 py-2 font-bold text-slate-800">
+                                <div className="flex flex-col gap-0.5">
+                                  <span
+                                    className="truncate max-w-[100px]"
+                                    title={labelText}
+                                  >
+                                    {labelText}
                                   </span>
-                                </>
-                              ) : (
-                                "—"
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      });
-                    })()}
-                  </tbody>
-                </table>
+                                  {isMain && (
+                                    <span className="text-[8px] font-black text-snack-700 bg-snack-50 border border-snack-100/50 px-1 py-0.2 rounded uppercase w-max select-none">
+                                      Utama
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-2 py-2 text-right font-semibold text-slate-700">
+                                {formatRupiah(val)}
+                              </td>
+                              <td
+                                className={`px-2 py-2 text-right font-extrabold ${isLoss ? "text-rose-600 animate-pulse" : "text-emerald-600"}`}
+                              >
+                                {calculatedModal > 0 ? (
+                                  <>
+                                    {formatRupiah(profit)}
+                                    <span className="text-[9px] font-semibold text-slate-400 block">
+                                      (
+                                      {margin > 0
+                                        ? `+${margin}%`
+                                        : `${margin}%`}
+                                      )
+                                    </span>
+                                  </>
+                                ) : (
+                                  "—"
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
 
-    {deleteTarget && (
+      {deleteTarget && (
         <ConfirmDialog
           message={`Hapus produk ${deleteTarget.nama_menu}? Transaksi lama tetap tersimpan. (Y/N)`}
           onConfirm={async () => {
@@ -1017,6 +1202,183 @@ export default function ProdukPage() {
                 className="py-2.5 px-4 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl font-bold text-xs transition"
               >
                 Batal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Dialog Cetak Katalog */}
+      {showCatalogModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50 select-none">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">
+                  Cetak Katalog PDF
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Pilih produk-produk yang ingin dicantumkan di dalam katalog PDF.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCatalogModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-auto p-6 flex flex-col h-full min-h-0">
+              {/* Products Checklist */}
+              <div className="flex flex-col h-full min-h-0">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 select-none">
+                  <h4 className="text-sm font-bold text-slate-700 uppercase tracking-wider">
+                    Daftar Produk ({selectedCatalogIds.length}/
+                    {produkList.length})
+                  </h4>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSelectAllCatalog}
+                      className="text-xs font-bold text-snack-600 hover:underline"
+                    >
+                      Pilih Semua
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={handleDeselectAllCatalog}
+                      className="text-xs font-bold text-slate-500 hover:underline"
+                    >
+                      Hapus Pilihan
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-3 shrink-0">
+                  <input
+                    type="text"
+                    value={catalogSearch}
+                    onChange={(e) => setCatalogSearch(e.target.value)}
+                    placeholder="Cari produk di katalog..."
+                    className="input-field bg-slate-50 py-1.5 text-sm"
+                  />
+                </div>
+
+                {/* Product List Container */}
+                <div className="flex-1 overflow-auto mt-3 border border-slate-100 rounded-xl bg-slate-50/50 p-2 divide-y divide-slate-100 min-h-[200px]">
+                  {filteredCatalogProducts.length === 0 ? (
+                    <div className="text-center py-8 text-sm text-slate-400 font-medium select-none">
+                      Produk tidak ditemukan
+                    </div>
+                  ) : (
+                    filteredCatalogProducts.map((p) => {
+                      const isChecked = selectedCatalogIds.includes(p.id);
+                      const handleToggleProduct = (id: number) => {
+                        setSelectedCatalogIds((prev) =>
+                          prev.includes(id)
+                            ? prev.filter((x) => x !== id)
+                            : [...prev, id],
+                        );
+                      };
+                      return (
+                        <label
+                          key={p.id}
+                          className="flex items-center gap-3 py-2.5 px-3 hover:bg-white rounded-lg cursor-pointer transition select-none"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => handleToggleProduct(p.id)}
+                            className="rounded border-slate-300 text-snack-600 focus:ring-snack-500 w-4 h-4"
+                          />
+                          {p.gambar ? (
+                            <img
+                              src={p.gambar}
+                              className="w-8 h-8 rounded object-cover border border-slate-200"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded bg-slate-200 text-slate-500 flex items-center justify-center text-xs font-black">
+                              {p.nama_menu.slice(0, 2)}
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-bold text-slate-800 truncate uppercase">
+                              {p.nama_menu}
+                            </div>
+                            {p.berat_produk && (
+                              <div className="text-[10px] text-slate-400 font-semibold">
+                                Berat: {p.berat_produk}
+                              </div>
+                            )}
+                          </div>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-100 flex justify-end gap-2 bg-slate-50/50 select-none">
+              <button
+                type="button"
+                onClick={() => setShowCatalogModal(false)}
+                className="py-2 px-4 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl font-bold text-xs transition"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleExportCatalogPdf}
+                disabled={isExportingPdf || selectedCatalogIds.length === 0}
+                className="py-2 px-5 bg-snack-600 hover:bg-snack-700 text-white rounded-xl font-bold shadow text-xs transition disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isExportingPdf ? (
+                  <>
+                    <svg
+                      className="animate-spin h-3 w-3 text-white"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    Mengekspor...
+                  </>
+                ) : (
+                  "Unduh Katalog PDF"
+                )}
               </button>
             </div>
           </div>

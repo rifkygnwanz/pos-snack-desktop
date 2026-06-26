@@ -36,18 +36,24 @@ function generateNomorTrx(db: ReturnType<typeof getDatabase>): string {
   const today = new Date()
   const pad = (n: number) => String(n).padStart(2, '0')
   const prefix = `TRX-${today.getFullYear()}${pad(today.getMonth() + 1)}${pad(today.getDate())}`
+  const timeStr = `${pad(today.getHours())}${pad(today.getMinutes())}${pad(today.getSeconds())}`
 
-  const last = db
-    .prepare(`SELECT nomor_trx FROM transaksi WHERE nomor_trx LIKE ? ORDER BY id DESC LIMIT 1`)
-    .get(`${prefix}-%`) as { nomor_trx: string } | undefined
+  const candidate = `${prefix}-${timeStr}`
+  let finalNomorTrx = candidate
+  let count = 0
 
-  let seq = 1
-  if (last) {
-    const parts = last.nomor_trx.split('-')
-    seq = parseInt(parts[2] ?? '0', 10) + 1
+  while (true) {
+    const exists = db
+      .prepare(`SELECT 1 FROM transaksi WHERE nomor_trx = ?`)
+      .get(finalNomorTrx)
+    if (!exists) {
+      break
+    }
+    count++
+    finalNomorTrx = `${candidate}-${count}`
   }
 
-  return `${prefix}-${String(seq).padStart(4, '0')}`
+  return finalNomorTrx
 }
 
 function validateItems(items: CartItem[]): void {

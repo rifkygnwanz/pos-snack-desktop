@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS produk (
   berat_produk TEXT,
   main_eceran TEXT,
   label_kemasan TEXT,
+  gambar TEXT,
   deleted INTEGER NOT NULL DEFAULT 0,
   created_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime')),
   updated_at DATETIME NOT NULL DEFAULT (datetime('now', 'localtime'))
@@ -102,6 +103,18 @@ export function initDatabase(): Database.Database {
     }
     // Seed warna_primary unconditionally if missing
     db.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('warna_primary', '#ea580c')").run()
+    db.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('telepon_toko', '')").run()
+    db.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('instagram_toko', '')").run()
+    db.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('shopee_toko', '')").run()
+    db.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('tokopedia_toko', '')").run()
+    db.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('tiktok_toko', '')").run()
+    db.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('struk_show_telepon', '1')").run()
+    db.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('struk_show_instagram', '1')").run()
+    db.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('struk_show_tiktok', '1')").run()
+    db.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('struk_show_shopee', '1')").run()
+    db.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('struk_show_tokopedia', '1')").run()
+    db.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('struk_custom_footer', 'Terima kasih sudah berbelanja!')").run()
+    db.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('struk_social_order', 'telepon,instagram,tiktok,shopee,tokopedia')").run()
   } catch (err) {
     // Safe to ignore
   }
@@ -123,6 +136,13 @@ export function initDatabase(): Database.Database {
   // Migration: Add label_kemasan column if it doesn't exist
   try {
     db.exec(`ALTER TABLE produk ADD COLUMN label_kemasan TEXT`)
+  } catch (err) {
+    // Column already exists, safe to ignore
+  }
+
+  // Migration: Add gambar column if it doesn't exist
+  try {
+    db.exec(`ALTER TABLE produk ADD COLUMN gambar TEXT`)
   } catch (err) {
     // Column already exists, safe to ignore
   }
@@ -261,6 +281,18 @@ export function clearDatabase(): void {
     database.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('admin_password', 'admin')").run()
     database.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('alamat_toko', '')").run()
     database.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('warna_primary', '#ea580c')").run()
+    database.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('telepon_toko', '')").run()
+    database.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('instagram_toko', '')").run()
+    database.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('shopee_toko', '')").run()
+    database.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('tokopedia_toko', '')").run()
+    database.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('tiktok_toko', '')").run()
+    database.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('struk_show_telepon', '1')").run()
+    database.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('struk_show_instagram', '1')").run()
+    database.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('struk_show_tiktok', '1')").run()
+    database.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('struk_show_shopee', '1')").run()
+    database.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('struk_show_tokopedia', '1')").run()
+    database.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('struk_custom_footer', 'Terima kasih sudah berbelanja!')").run()
+    database.prepare("INSERT OR IGNORE INTO pengaturan (kunci, nilai) VALUES ('struk_social_order', 'telepon,instagram,tiktok,shopee,tokopedia')").run()
   })
   tx()
 }
@@ -352,8 +384,8 @@ export function importDatabaseData(jsonStr: string): void {
 
     // 4. Masukkan Produk
     const insertProduk = database.prepare(`
-      INSERT INTO produk (id, nama_menu, harga_modal, harga_jual, harga_100gr, harga_200gr, harga_250gr, harga_500gr, harga_1kg, berat_produk, main_eceran, label_kemasan, deleted, created_at, updated_at)
-      VALUES (@id, @nama_menu, @harga_modal, @harga_jual, @harga_100gr, @harga_200gr, @harga_250gr, @harga_500gr, @harga_1kg, @berat_produk, @main_eceran, @label_kemasan, @deleted, @created_at, @updated_at)
+      INSERT INTO produk (id, nama_menu, harga_modal, harga_jual, harga_100gr, harga_200gr, harga_250gr, harga_500gr, harga_1kg, berat_produk, main_eceran, label_kemasan, gambar, deleted, created_at, updated_at)
+      VALUES (@id, @nama_menu, @harga_modal, @harga_jual, @harga_100gr, @harga_200gr, @harga_250gr, @harga_500gr, @harga_1kg, @berat_produk, @main_eceran, @label_kemasan, @gambar, @deleted, @created_at, @updated_at)
     `)
     for (const p of data.produk) {
       insertProduk.run({
@@ -363,7 +395,8 @@ export function importDatabaseData(jsonStr: string): void {
         harga_100gr: p.harga_100gr !== undefined ? p.harga_100gr : (p.harga_100_110gr !== undefined ? p.harga_100_110gr : null),
         berat_produk: p.berat_produk !== undefined ? (p.berat_produk ? p.berat_produk.toLowerCase() : null) : null,
         main_eceran: p.main_eceran === 'bal' ? 'jual' : (p.main_eceran !== undefined ? p.main_eceran : null),
-        label_kemasan: p.label_kemasan !== undefined ? p.label_kemasan : null
+        label_kemasan: p.label_kemasan !== undefined ? p.label_kemasan : null,
+        gambar: p.gambar !== undefined ? p.gambar : null
       })
     }
 

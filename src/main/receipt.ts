@@ -90,7 +90,58 @@ export function generateReceipt(
   lines.push(padLine("BAYAR", formatRp(transaksi.bayar)));
   lines.push(padLine("KEMBALI", formatRp(transaksi.kembali)));
   lines.push(LINE);
-  lines.push(center("Terima kasih sudah berbelanja!"));
+  
+  const telepon = getPengaturan("telepon_toko", "").trim();
+  const instagram = getPengaturan("instagram_toko", "").trim();
+  const shopee = getPengaturan("shopee_toko", "").trim();
+  const tokopedia = getPengaturan("tokopedia_toko", "").trim();
+  const tiktok = getPengaturan("tiktok_toko", "").trim();
+
+  const showTelepon = getPengaturan("struk_show_telepon", "1") === "1";
+  const showInstagram = getPengaturan("struk_show_instagram", "1") === "1";
+  const showTiktok = getPengaturan("struk_show_tiktok", "1") === "1";
+  const showShopee = getPengaturan("struk_show_shopee", "1") === "1";
+  const showTokopedia = getPengaturan("struk_show_tokopedia", "1") === "1";
+  const customFooter = getPengaturan("struk_custom_footer", "Terima kasih sudah berbelanja!").trim();
+  
+  const hasContactsToPrint = 
+    (telepon && showTelepon) || 
+    (instagram && showInstagram) || 
+    (shopee && showShopee) || 
+    (tokopedia && showTokopedia) || 
+    (tiktok && showTiktok);
+    
+  if (hasContactsToPrint) {
+    const orderStr = getPengaturan("struk_social_order", "telepon,instagram,tiktok,shopee,tokopedia");
+    const order = orderStr.split(",");
+    for (const key of order) {
+      if (key === "telepon" && telepon && showTelepon) {
+        lines.push(`Whatsapp: ${telepon}`);
+      }
+      if (key === "instagram" && instagram && showInstagram) {
+        lines.push(`Instagram: @${instagram}`);
+      }
+      if (key === "tiktok" && tiktok && showTiktok) {
+        lines.push(`Tiktok: @${tiktok}`);
+      }
+      if (key === "shopee" && shopee && showShopee) {
+        lines.push(`Shopee: ${shopee}`);
+      }
+      if (key === "tokopedia" && tokopedia && showTokopedia) {
+        lines.push(`Tokopedia: ${tokopedia}`);
+      }
+    }
+    lines.push(LINE);
+  }
+  
+  if (customFooter) {
+    const footerLines = customFooter.split("\n");
+    for (const fLine of footerLines) {
+      for (const wrappedLine of wrapText(fLine)) {
+        lines.push(center(wrappedLine));
+      }
+    }
+  }
   lines.push("");
 
   return lines.join("\n");
@@ -121,8 +172,9 @@ export function printReceipt(text: string): void {
               margin: 0;
               padding: 0px 4px;
               font-family: 'Courier New', Courier, monospace;
-              font-size: 9px;
-              line-height: 1.25;
+              font-size: 10px;
+              font-weight: bold;
+              line-height: 1.2;
               white-space: pre-wrap;
               word-break: break-all;
               color: #000;
