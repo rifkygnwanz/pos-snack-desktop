@@ -32,6 +32,20 @@ export default function PanelBayar() {
     }
   }, [paymentMode]);
 
+  // Keyboard shortcut: + or = → Uang Pas (exact change)
+  useEffect(() => {
+    if (!paymentMode) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "+" || e.key === "=") {
+        e.preventDefault();
+        setBayarInput(totals.totalBayar.toString());
+        setTimeout(() => inputRef.current?.focus(), 50);
+      }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [paymentMode, totals.totalBayar, setBayarInput]);
+
   if (!paymentMode) {
     return (
       <div className="panel px-4 py-3">
@@ -73,8 +87,8 @@ export default function PanelBayar() {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col md:flex-row h-[90vh] md:h-[600px] border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
         {/* Left Column: Payment Controls */}
-        <div className="flex-1 p-6 md:p-8 flex flex-col justify-between bg-slate-50 border-r border-slate-100">
-          <div>
+        <div className="flex-1 p-6 md:p-8 flex flex-col bg-slate-50 border-r border-slate-100 min-h-0">
+          <div className="flex-1 overflow-y-auto min-h-0 px-1 pb-6">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-bold text-slate-800">
                 Proses Pembayaran
@@ -104,26 +118,41 @@ export default function PanelBayar() {
                 <label className="block text-xs font-semibold uppercase text-slate-500 mb-2">
                   Uang Diterima (Rp)
                 </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-bold text-slate-400">
-                    Rp
-                  </span>
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={
-                      bayarInput
-                        ? parseInt(bayarInput, 10).toLocaleString("id-ID")
-                        : ""
-                    }
-                    onChange={(e) => setBayarInput(e.target.value)}
-                    className={`w-full pl-12 pr-4 py-3 bg-white border-2 rounded-xl text-2xl font-bold transition-all focus:outline-none focus:ring-4 focus:ring-snack-500/10 ${
-                      bayarError
-                        ? "border-red-500 focus:border-red-500"
-                        : "border-slate-200 focus:border-snack-500"
-                    }`}
-                    placeholder="0"
-                  />
+                <div className="flex gap-2 items-stretch">
+                  <div className="relative flex-1">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-bold text-slate-400">
+                      Rp
+                    </span>
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      value={
+                        bayarInput
+                          ? parseInt(bayarInput, 10).toLocaleString("id-ID")
+                          : ""
+                      }
+                      onChange={(e) => setBayarInput(e.target.value)}
+                      className={`w-full pl-12 pr-4 py-3 bg-white border-2 rounded-xl text-2xl font-bold transition-all focus:outline-none focus:ring-4 focus:ring-snack-500/10 ${
+                        bayarError
+                          ? "border-red-500 focus:border-red-500"
+                          : "border-slate-200 focus:border-snack-500"
+                      }`}
+                      placeholder="0"
+                    />
+                  </div>
+                  {/* Uang Pas button — inline right of input */}
+                  <button
+                    type="button"
+                    title="Uang Pas (+ atau =)"
+                    onClick={() => {
+                      setBayarInput(totals.totalBayar.toString());
+                      setTimeout(() => inputRef.current?.focus(), 50);
+                    }}
+                    className="flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-w-[56px] bg-snack-50 hover:bg-snack-100 active:scale-95 text-snack-700 border-2 border-slate-200 hover:border-snack-300 rounded-xl font-bold text-[11px] leading-tight transition-all"
+                  >
+                    <span>Uang</span>
+                    <span>Pas</span>
+                  </button>
                 </div>
                 {bayarError && (
                   <p className="mt-1.5 text-sm font-medium text-red-600">
@@ -161,7 +190,7 @@ export default function PanelBayar() {
           </div>
 
           {/* Action Buttons & Shortcut Hints */}
-          <div className="pt-6 border-t border-slate-200/60">
+          <div className="pt-3 border-t border-slate-200/60">
             {confirmPrint && !bayarError ? (
               <div className="mb-4 rounded-xl bg-emerald-50 border border-emerald-100 p-3 flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></div>

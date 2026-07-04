@@ -3,7 +3,7 @@ import type { DetailTransaksi, Kemasan, Transaksi } from "../shared/types";
 import { KEMASAN_LABELS } from "../shared/types";
 import { getPengaturan } from "./database";
 
-const WIDTH = 32;
+const WIDTH = 30;
 const LINE = "-".repeat(WIDTH);
 
 function padLine(label: string, value: string, width = WIDTH): string {
@@ -90,7 +90,7 @@ export function generateReceipt(
   lines.push(padLine("BAYAR", formatRp(transaksi.bayar)));
   lines.push(padLine("KEMBALI", formatRp(transaksi.kembali)));
   lines.push(LINE);
-  
+
   const telepon = getPengaturan("telepon_toko", "").trim();
   const instagram = getPengaturan("instagram_toko", "").trim();
   const shopee = getPengaturan("shopee_toko", "").trim();
@@ -102,17 +102,23 @@ export function generateReceipt(
   const showTiktok = getPengaturan("struk_show_tiktok", "1") === "1";
   const showShopee = getPengaturan("struk_show_shopee", "1") === "1";
   const showTokopedia = getPengaturan("struk_show_tokopedia", "1") === "1";
-  const customFooter = getPengaturan("struk_custom_footer", "Terima kasih sudah berbelanja!").trim();
-  
-  const hasContactsToPrint = 
-    (telepon && showTelepon) || 
-    (instagram && showInstagram) || 
-    (shopee && showShopee) || 
-    (tokopedia && showTokopedia) || 
+  const customFooter = getPengaturan(
+    "struk_custom_footer",
+    "Terima kasih sudah berbelanja!",
+  ).trim();
+
+  const hasContactsToPrint =
+    (telepon && showTelepon) ||
+    (instagram && showInstagram) ||
+    (shopee && showShopee) ||
+    (tokopedia && showTokopedia) ||
     (tiktok && showTiktok);
-    
+
   if (hasContactsToPrint) {
-    const orderStr = getPengaturan("struk_social_order", "telepon,instagram,tiktok,shopee,tokopedia");
+    const orderStr = getPengaturan(
+      "struk_social_order",
+      "telepon,instagram,tiktok,shopee,tokopedia",
+    );
     const order = orderStr.split(",");
     for (const key of order) {
       if (key === "telepon" && telepon && showTelepon) {
@@ -133,7 +139,7 @@ export function generateReceipt(
     }
     lines.push(LINE);
   }
-  
+
   if (customFooter) {
     const footerLines = customFooter.split("\n");
     for (const fLine of footerLines) {
@@ -170,7 +176,7 @@ export function printReceipt(text: string): void {
             }
             body {
               margin: 0;
-              padding: 0px 4px;
+              padding: 0px 1px;
               font-family: 'Courier New', Courier, monospace;
               font-size: 10px;
               font-weight: bold;
