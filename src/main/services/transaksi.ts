@@ -153,7 +153,7 @@ export function listTransaksi(filter: TransaksiFilter = {}): Transaksi[] {
 
   const rows = db
     .prepare(
-      `SELECT t.*, COUNT(d.id) as item_count
+      `SELECT t.*, COALESCE(SUM(d.qty), 0) as item_count
        FROM transaksi t
        LEFT JOIN detail_transaksi d ON d.transaksi_id = t.id
        WHERE ${conditions.join(' AND ')}

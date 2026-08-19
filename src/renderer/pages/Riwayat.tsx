@@ -182,7 +182,7 @@ export default function RiwayatPage() {
               <tr>
                 <th className="px-3 py-2">Nomor TRX</th>
                 <th className="px-3 py-2">Tanggal</th>
-                <th className="px-3 py-2">Item</th>
+                <th className="px-3 py-2">Qty</th>
                 <th className="px-3 py-2">Total Bayar</th>
                 <th className="px-3 py-2">Bayar</th>
                 <th className="px-3 py-2">Kembali</th>

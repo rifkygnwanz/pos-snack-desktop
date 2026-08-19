@@ -4,7 +4,7 @@ Offline desktop POS — keyboard-first cashier workflow.
 
 ## fix security app mac
 
-xattr -cr /Applications/Kasir.app
+sudo xattr -cr /Applications/Kasir.app
 
 ## Stack
 

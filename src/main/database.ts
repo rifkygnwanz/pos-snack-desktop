@@ -259,6 +259,11 @@ function seedSampleData(database: Database.Database): void {
 
 export function closeDatabase(): void {
   if (db) {
+    try {
+      db.pragma('wal_checkpoint(TRUNCATE)')
+    } catch (err) {
+      // ignore
+    }
     db.close()
     db = null
   }

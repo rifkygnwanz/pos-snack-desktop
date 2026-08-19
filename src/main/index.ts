@@ -23,6 +23,39 @@ function createWindow(): void {
     }
   })
 
+  // Global Debug & Reload Shortcuts (works in both dev and production build)
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    // Cmd+Option+I (macOS) or Ctrl+Shift+I (Windows) or F12 -> Toggle DevTools
+    const isDevToolsShortcut =
+      input.key === 'F12' ||
+      (input.key.toLowerCase() === 'i' &&
+        ((input.meta && input.alt) || (input.control && input.shift)))
+
+    if (isDevToolsShortcut && input.type === 'keyDown') {
+      mainWindow?.webContents.toggleDevTools()
+      event.preventDefault()
+    }
+
+    // Cmd+R (macOS) or Ctrl+R (Windows) or F5 -> Reload Window
+    const isReloadShortcut =
+      input.key === 'F5' ||
+      (input.key.toLowerCase() === 'r' && (input.meta || input.control))
+
+    if (isReloadShortcut && input.type === 'keyDown') {
+      mainWindow?.webContents.reload()
+      event.preventDefault()
+    }
+  })
+
+  // Log renderer crashes/hangs
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    console.error('Renderer process gone:', details)
+  })
+
+  mainWindow.webContents.on('unresponsive', () => {
+    console.warn('Main window is unresponsive')
+  })
+
   if (process.env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
     mainWindow.webContents.openDevTools({ mode: 'bottom' })
@@ -34,6 +67,15 @@ function createWindow(): void {
     mainWindow = null
   })
 }
+
+// Global Exception Handlers
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception in main process:', error)
+})
+
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Promise Rejection in main process:', reason)
+})
 
 app.whenReady().then(() => {
   initDatabase()
@@ -57,3 +99,4 @@ app.on('before-quit', () => {
 export function getMainWindow(): BrowserWindow | null {
   return mainWindow
 }
+

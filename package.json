@@ -1,6 +1,6 @@
 {
   "name": "desktop-pos",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Aplikasi Kasir POS Desktop Offline",
   "main": "out/main/index.js",
   "author": "POS Desktop Developer",
@@ -57,7 +57,10 @@
       ]
     },
     "win": {
-      "target": ["nsis", "portable"]
+      "target": [
+        "nsis",
+        "portable"
+      ]
     }
   }
 }
